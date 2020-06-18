@@ -137,7 +137,7 @@ class VizShonenJump : ParsedHttpSource() {
 
         url = element.attr("data-target-url")
         if (url.startsWith("javascript")) {
-            val match = Regex("javascript:tryReadChapter\\(\\d+,'(.+?)'\\);").matchEntire(element.attr("data-target-url"))
+            val match = Regex("javascript:tryReadChapter\\(\\d+,'(.+?)'\\);").matchEntire(url)
             url = match!!.groupValues[1]
         } else {
             name += " (Free)"
