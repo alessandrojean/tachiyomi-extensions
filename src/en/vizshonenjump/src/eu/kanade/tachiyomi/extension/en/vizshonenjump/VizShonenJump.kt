@@ -55,11 +55,11 @@ class VizShonenJump : ParsedHttpSource() {
         return MangasPage(mangas.sortedBy { it.title }, false)
     }
 
-    override fun popularMangaSelector(): String = "section.section_chapters div.o_sort_container div.o_sortable a"
+    override fun popularMangaSelector(): String = "section.section_chapters div.o_sort_container div.o_sortable > a"
 
     override fun popularMangaFromElement(element: Element): SManga = SManga.create().apply {
         title = element.select("div.pad-x-rg").first().text()
-        thumbnail_url = element.select("div.pos-r img.disp-bl").first()?.attr("data-original")
+        thumbnail_url = element.select("div.pos-r img.disp-bl").first()?.attr("src")
         url = element.attr("href")
     }
 
@@ -112,13 +112,13 @@ class VizShonenJump : ParsedHttpSource() {
                 ?.replace("Created by ", "")
             artist = author
             status = SManga.ONGOING
-            description = seriesIntro.select("h4").first().text()
+            description = seriesIntro.select("h2").first().text()
         }
     }
 
     override fun chapterListSelector() =
-        "section.section_chapters div.o_sortable > a.o_chapter-container:not([href*=javascript]), " +
-            "section.section_chapters div.o_sortable div.o_chapter-vol-container tr.o_chapter a.o_chapter-container.pad-r-0:not([href*=javascript])"
+        "section.section_chapters div.o_sortable > a.o_chapter-container, " +
+            "section.section_chapters div.o_sortable div.o_chapter-vol-container tr.o_chapter a.o_chapter-container.pad-r-0"
 
     override fun chapterFromElement(element: Element): SChapter = SChapter.create().apply {
         val isVolume = element.select("div:nth-child(1) table").first() == null
@@ -134,7 +134,14 @@ class VizShonenJump : ParsedHttpSource() {
         }
 
         scanlator = "VIZ Media"
-        url = element.attr("href")
+
+        url = element.attr("data-target-url")
+        if (url.startsWith("javascript")) {
+            val match = Regex("javascript:tryReadChapter\\(\\d+,'(.+?)'\\);").matchEntire(element.attr("data-target-url"))
+            url = match!!.groupValues[1]
+        } else {
+            name += " (Free)"
+        }
     }
 
     override fun pageListRequest(chapter: SChapter): Request {
