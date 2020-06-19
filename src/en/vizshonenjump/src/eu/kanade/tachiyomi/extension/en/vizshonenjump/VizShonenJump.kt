@@ -10,6 +10,7 @@ import eu.kanade.tachiyomi.source.online.ParsedHttpSource
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Locale
+import okhttp3.CacheControl
 import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
@@ -43,7 +44,7 @@ class VizShonenJump : ParsedHttpSource() {
             .set("Referer", baseUrl)
             .build()
 
-        return GET("$baseUrl/shonenjump", newHeaders)
+        return GET("$baseUrl/shonenjump", newHeaders, CacheControl.FORCE_NETWORK)
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
@@ -136,9 +137,8 @@ class VizShonenJump : ParsedHttpSource() {
         scanlator = "VIZ Media"
 
         url = element.attr("data-target-url")
-        if (url.startsWith("javascript")) {
-            val match = Regex("javascript:tryReadChapter\\(\\d+,'(.+?)'\\);").matchEntire(url)
-            url = match!!.groupValues[1]
+        if (url.startsWith("javascript:tryReadChapter")) {
+            url = url.substringAfter("'").substringBeforeLast("'")
         } else {
             name += " (Free)"
         }
