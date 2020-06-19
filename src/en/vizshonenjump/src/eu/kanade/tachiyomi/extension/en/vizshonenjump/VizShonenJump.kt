@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
+import eu.kanade.tachiyomi.util.asJsoup
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -117,6 +118,26 @@ class VizShonenJump : ParsedHttpSource() {
         }
     }
 
+    override fun chapterListParse(response: Response): List<SChapter> {
+        val allChapters = super.chapterListParse(response)
+
+        val newHeaders = headersBuilder()
+            .add("X-Requested-With", "XMLHttpRequest")
+            .set("Referer", response.request().url().toString())
+            .build()
+        val loginCheckRequest = GET(REFRESH_LOGIN_LINKS_URL, newHeaders)
+        val document = client.newCall(loginCheckRequest).execute().asJsoup()
+        val isLoggedIn = document.select("div#o_account-links-content").first()!!.attr("logged_in")!!.toBoolean()
+
+        if (isLoggedIn) {
+            return allChapters.map { oldChapter ->
+                oldChapter.apply { url = url.substringAfter("'").substringBeforeLast("'") }
+            }
+        }
+
+        return allChapters.filter { !it.url.startsWith("javascript") }
+    }
+
     override fun chapterListSelector() =
         "section.section_chapters div.o_sortable > a.o_chapter-container, " +
             "section.section_chapters div.o_sortable div.o_chapter-vol-container tr.o_chapter a.o_chapter-container.pad-r-0"
@@ -137,11 +158,6 @@ class VizShonenJump : ParsedHttpSource() {
         scanlator = "VIZ Media"
 
         url = element.attr("data-target-url")
-        if (url.startsWith("javascript:tryReadChapter")) {
-            url = url.substringAfter("'").substringBeforeLast("'")
-        } else {
-            name += " (Free)"
-        }
     }
 
     override fun pageListRequest(chapter: SChapter): Request {
@@ -228,5 +244,7 @@ class VizShonenJump : ParsedHttpSource() {
         private val DATE_FORMATTER by lazy { SimpleDateFormat("MMMM d, yyyy", Locale.ENGLISH) }
 
         private const val COUNTRY_NOT_SUPPORTED = "Your country is not supported, try using a VPN."
+
+        private const val REFRESH_LOGIN_LINKS_URL = "https://www.viz.com/account/refresh_login_links"
     }
 }
