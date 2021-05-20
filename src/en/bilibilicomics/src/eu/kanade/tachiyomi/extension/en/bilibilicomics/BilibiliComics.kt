@@ -141,7 +141,7 @@ class BilibiliComics : HttpSource() {
 
     private fun searchMangaFromObject(obj: JsonElement): SManga = SManga.create().apply {
         //Results to "Me and <em class=\"keyword\">My</em> Zoo" (to highlight search query) I have 0 knowledge what to do here + on phone.
-        title = obj["title"].string 
+        title = obj["title"].string.text() //.text() should fix it.
         thumbnail_url = obj["vertical_cover"].string
         url = "/detail/mc" + obj["id"].int
     }
@@ -235,7 +235,7 @@ class BilibiliComics : HttpSource() {
         }
 
         return jsonResponse["data"]["images"].array
-            .mapIndexed { i, page -> Page(i, page["path"].string + "@" + page["x"].int.toString() + "w.jpg", "") }
+            .mapIndexed { i, page -> Page(i, page["path"].string, "") }
     }
 
     override fun imageUrlRequest(page: Page): Request {
