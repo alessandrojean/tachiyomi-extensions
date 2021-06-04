@@ -2,9 +2,6 @@ package eu.kanade.tachiyomi.extension.all.mangaplus
 
 import android.app.Application
 import android.content.SharedPreferences
-import android.os.Build
-import com.google.gson.Gson
-import com.squareup.duktape.Duktape
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.source.ConfigurableSource
@@ -23,14 +20,14 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import okhttp3.ResponseBody
 import rx.Observable
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.util.UUID
-import androidx.preference.CheckBoxPreference as AndroidXCheckBoxPreference
-import androidx.preference.ListPreference as AndroidXListPreference
-import androidx.preference.PreferenceScreen as AndroidXPreferenceScreen
+import androidx.preference.CheckBoxPreference
+import androidx.preference.ListPreference
+import androidx.preference.PreferenceScreen
+import okhttp3.ResponseBody.Companion.toResponseBody
 
 abstract class MangaPlus(
     override val lang: String,
@@ -54,13 +51,6 @@ abstract class MangaPlus(
         .addInterceptor { imageIntercept(it) }
         .addInterceptor { thumbnailIntercept(it) }
         .build()
-
-    private val protobufJs: String by lazy {
-        val request = GET(PROTOBUFJS_CDN, headers)
-        client.newCall(request).execute().body!!.string()
-    }
-
-    private val gson: Gson by lazy { Gson() }
 
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
@@ -318,8 +308,8 @@ abstract class MangaPlus(
         return GET(page.imageUrl!!, newHeaders)
     }
 
-    override fun setupPreferenceScreen(screen: AndroidXPreferenceScreen) {
-        val resolutionPref = AndroidXListPreference(screen.context).apply {
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        val resolutionPref = ListPreference(screen.context).apply {
             key = "${RESOLUTION_PREF_KEY}_$lang"
             title = RESOLUTION_PREF_TITLE
             entries = RESOLUTION_PREF_ENTRIES
@@ -334,7 +324,7 @@ abstract class MangaPlus(
                 preferences.edit().putString("${RESOLUTION_PREF_KEY}_$lang", entry).commit()
             }
         }
-        val splitPref = AndroidXCheckBoxPreference(screen.context).apply {
+        val splitPref = CheckBoxPreference(screen.context).apply {
             key = "${SPLIT_PREF_KEY}_$lang"
             title = SPLIT_PREF_TITLE
             summary = SPLIT_PREF_SUMMARY
@@ -370,7 +360,7 @@ abstract class MangaPlus(
 
         val contentType = response.header("Content-Type", "image/jpeg")!!
         val image = decodeImage(encryptionKey, response.body!!.bytes())
-        val body = ResponseBody.create(contentType.toMediaTypeOrNull(), image)
+        val body = image.toResponseBody(contentType.toMediaTypeOrNull())
 
         return response.newBuilder()
             .body(body)
@@ -430,25 +420,7 @@ abstract class MangaPlus(
         }
 
     private fun Response.asProto(): MangaPlusResponse {
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.M)
-            return ProtoBuf.decodeFromByteArray(body!!.bytes())
-
-        // The kotlinx.serialization library eventually always have some issues with
-        // devices with Android version below Nougat. So, if the device is running Android 6.x,
-        // the deserialization is done using ProtobufJS + Duktape + Gson.
-
-        val bytes = body!!.bytes()
-        val messageBytes = "var BYTE_ARR = new Uint8Array([${bytes.joinToString()}]);"
-
-        val res = Duktape.create().use {
-            // The current Kotlin version brokes Duktape's module feature,
-            // so we need to provide an workaround to prevent the usage of 'require'.
-            it.evaluate("var module = { exports: true };")
-            it.evaluate(protobufJs)
-            it.evaluate(messageBytes + DECODE_SCRIPT) as String
-        }
-
-        return gson.fromJson(res, MangaPlusResponse::class.java)
+        return ProtoBuf.decodeFromByteArray(body!!.bytes())
     }
 
     companion object {
@@ -457,8 +429,6 @@ abstract class MangaPlus(
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36"
 
         private val HEX_GROUP = "(.{1,2})".toRegex()
-
-        private const val PROTOBUFJS_CDN = "https://cdn.jsdelivr.net/npm/protobufjs@6.10.1/dist/light/protobuf.js"
 
         private const val RESOLUTION_PREF_KEY = "imageResolution"
         private const val RESOLUTION_PREF_TITLE = "Image resolution"
